@@ -31,6 +31,6 @@ optional arguments:
 
 ## Repository Information
 
-* *(Your names and Grinnell IDs)*
+* Yash Gupta and Halle Remash [guptayas], [remashha]
 * *(The version of Python that you used)*
 * *(List of external resources that you consulted)*
