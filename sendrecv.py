@@ -17,7 +17,7 @@
 #   if timer functionality is desired)
 #
 # Your various Receiver implementations should also inherit from the
-# BaseReceiver class which exposes thef ollowing important methouds you should
+# BaseReceiver class which exposes the following important methods you should
 # use in your implementations:
 #
 # - sender.send_to_network(seg): sends the given segment to network to be
@@ -34,16 +34,17 @@ from sendrecvbase import BaseSender, BaseReceiver
 import Queue
 
 class Segment:
-    def __init__(self, msg, dst):
+    def __init__(self, msg, dst, alt):
         self.msg = msg
         self.dst = dst
+        self.alt = alt
 
 class NaiveSender(BaseSender):
     def __init__(self, app_interval):
         super(NaiveSender, self).__init__(app_interval)
 
     def receive_from_app(self, msg):
-        seg = Segment(msg, 'receiver')
+        seg = Segment(msg, 'receiver', 0)
         self.send_to_network(seg)
 
     def receive_from_network(self, seg):
@@ -60,12 +61,58 @@ class NaiveReceiver(BaseReceiver):
         self.send_to_app(seg.msg)
 
 class AltSender(BaseSender):
-    # TODO: fill me in!
-    pass
+    waitingOnACK0 = True
+
+    def __init__(self):
+        super(AltSender, self).__intit(app_interval)
+    
+    def receive_from_app(self, msg):
+        seg = Segment(msg, 'receiver')
+        self.send_to_network(seg)
+        self.start_timer(1)
+
+    def receive_from_network(self, seg):
+        if waitingOnACK0:
+            if seg.msg == 'ACK0':
+                waitingOnACK0 = False
+            else:
+                seg = Segment('N0', 'receiver')
+                self.send_to_network(seg)
+        else: 
+            if seg.msg == 'ACK1':
+                waitingOnACK0 = True
+            else:
+                seg = Segment('N1', 'receiver')
+                self.send_to_network(seg)                
+
+    def on_interrupt():
+        if waitingOnACK0:
+            seg = Segment('N0', 'receiver')
+            self.send_to_network(seg)
+        else:
+            seg = Segment('N1', 'receiver')
+            self.send_to_network(seg)
+
 
 class AltReceiver(BaseReceiver):
-    # TODO: fill me in!
-    pass
+    curAltBit0 = True
+
+    def __init__(self):
+        super(NaiveReceiver, self).__init__()
+
+    def receive_from_client(self, seg):
+        if curAltBit0:
+            seg = Segment('ACK0', 'sender')
+            self.send_to_network(seg)
+            self.send_to_app(seg.msg)
+            curAltBit0 = False
+        else:
+            seg = Segment('ACK1', 'sender')
+            self.send_to_network(seg)
+            self.send_to_app(seg.msg)
+            curAltBit0 = True
+        
+
 
 class GBNSender(BaseSender):
     # TODO: fill me in!
