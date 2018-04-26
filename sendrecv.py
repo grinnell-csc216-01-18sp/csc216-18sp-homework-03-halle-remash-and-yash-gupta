@@ -67,30 +67,34 @@ class AltSender(BaseSender):
         super(AltSender, self).__init__(app_interval)
 
     def receive_from_app(self, msg):
-        seg = Segment(msg, 'receiver')
+        bit = 0 if self.waitingOnACK0 else 1
+        seg = Segment(msg, 'receiver', bit)
         self.send_to_network(seg)
-        self.start_timer(1)
+        self.start_timer(16)
 
     def receive_from_network(self, seg):
-        if waitingOnACK0:
+        bit = 0 if self.waitingOnACK0 else 1
+        if self.waitingOnACK0:
             if seg.msg == 'ACK0':
-                waitingOnACK0 = False
+                self.waitingOnACK0 = False
             else:
-                seg = Segment('N0', 'receiver')
+                seg = Segment('NAK0', 'receiver', bit)
                 self.send_to_network(seg)
         else:
             if seg.msg == 'ACK1':
-                waitingOnACK0 = True
+                self.waitingOnACK0 = True
             else:
-                seg = Segment('N1', 'receiver')
+                seg = Segment('NAK1', 'receiver', bit)
                 self.send_to_network(seg)
 
-    def on_interrupt():
-        if waitingOnACK0:
-            seg = Segment('N0', 'receiver')
+    def on_interrupt(self):
+        BaseSender.end_timer(self)
+        bit = 0 if self.waitingOnACK0 else 1
+        if self.waitingOnACK0:
+            seg = Segment('NAK0', 'receiver', bit)
             self.send_to_network(seg)
         else:
-            seg = Segment('N1', 'receiver')
+            seg = Segment('NAK1', 'receiver', bit)
             self.send_to_network(seg)
 
 
@@ -101,18 +105,17 @@ class AltReceiver(BaseReceiver):
         super(AltReceiver, self).__init__()
 
     def receive_from_client(self, seg):
-        if curAltBit0:
-            seg = Segment('ACK0', 'sender')
-            self.send_to_network(seg)
+        bit = 0 if self.curAltBit0 else 1
+        if self.curAltBit0:
+            ack = Segment('ACK0', 'sender', bit)
+            self.send_to_network(ack)
             self.send_to_app(seg.msg)
-            curAltBit0 = False
+            self.curAltBit0 = False
         else:
-            seg = Segment('ACK1', 'sender')
-            self.send_to_network(seg)
+            ack = Segment('ACK1', 'sender', bit)
+            self.send_to_network(ack)
             self.send_to_app(seg.msg)
-            curAltBit0 = True
-
-
+            self.curAltBit0 = True
 
 class GBNSender(BaseSender):
     # TODO: fill me in!
