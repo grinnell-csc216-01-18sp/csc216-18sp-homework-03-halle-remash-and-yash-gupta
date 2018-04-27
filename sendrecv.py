@@ -30,8 +30,11 @@
 ##
 
 from sendrecvbase import BaseSender, BaseReceiver
-
+from copy import deepcopy
 import Queue
+
+def firstInQueue(q):
+	return q.queue[0]
 
 class Segment:
     def __init__(self, msg, dst, alt):
@@ -118,9 +121,45 @@ class AltReceiver(BaseReceiver):
             self.curAltBit0 = True
 
 class GBNSender(BaseSender):
-    # TODO: fill me in!
-    pass
+	def __init__(self, app_interval):
+		super(GBNSender, self).__init__(app_interval)
+		self.oldestSeq = 1
+		self.nextSeq = 2
+		self.maxSeq = 3
+		self.queue = Queue.Queue()
+
+	def receive_from_app(self, msg):
+		seg = Segment(msg, 'receiver', self.nextSeq)
+		self.queue.put(seg)
+		self.send_to_network(deepcopy(seg))
+		self.nextSeq += 1
+		if self.queue.qsize() == self.maxSeq:
+			self.disallow_app_msgs()
+		if self.queue.qsize() == 1:
+			self.start_timer(15)
+
+	def receive_from_network(self, seg):
+		if seg.msg == 'ACK' and seg.alt > self.oldestSeq:
+			self.oldestSeq = seg.alt
+			while not self.queue.empty() and firstInQueue(self.queue).alt < self.oldestSeq:
+				self.queue.get()
+			self.allow_app_msgs()
+
+	def on_interrupt(self):
+		for seg in list(self.queue.queue):
+			self.send_to_network(deepcopy(seg))
+		self.start_timer(15)
 
 class GBNReceiver(BaseReceiver):
-    # TODO: fill me in!
-    pass
+	def __init__(self):
+		super(GBNReceiver, self).__init__()
+		self.recvSeq = 1
+
+	def receive_from_client(self, seg):
+		if seg.msg != '<CORRUPTED>' and seg.alt == self.recvSeq + 1:
+			self.recvSeq += 1
+			self.send_to_app(seg.msg)
+			seg2 = Segment('ACK', 'sender', self.recvSeq)
+		else:
+			seg2 = Segment('ACK', 'sender', self.recvSeq)
+		self.send_to_network(seg2)
