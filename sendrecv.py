@@ -81,28 +81,28 @@ class AltSender(BaseSender):
             if seg.msg == 'ACK0':
                 self.waitingOnACK0 = False
             else:
-                seg = Segment('NAK0', 'receiver', bit)
+                seg = Segment('NAK', 'receiver', bit)
                 self.send_to_network(seg)
         else:
             if seg.msg == 'ACK1':
                 self.waitingOnACK0 = True
             else:
-                seg = Segment('NAK1', 'receiver', bit)
+                seg = Segment('NAK', 'receiver', bit)
                 self.send_to_network(seg)
 
     def on_interrupt(self):
         BaseSender.end_timer(self)
         bit = 0 if self.waitingOnACK0 else 1
         if self.waitingOnACK0:
-            seg = Segment('NAK0', 'receiver', bit)
+            seg = Segment('NAK', 'receiver', bit)
             self.send_to_network(seg)
         else:
-            seg = Segment('NAK1', 'receiver', bit)
+            seg = Segment('NAK', 'receiver', bit)
             self.send_to_network(seg)
 
 
 class AltReceiver(BaseReceiver):
-    curAltBit0 = True
+    curAltBit = 0
 
     def __init__(self):
         super(AltReceiver, self).__init__()
@@ -119,6 +119,26 @@ class AltReceiver(BaseReceiver):
             self.send_to_network(ack)
             self.send_to_app(seg.msg)
             self.curAltBit0 = True
+
+class AltReceiver(BaseReceiver):
+    curAltBit = 0
+
+    def __init__(self):
+        super(AltReceiver, self).__init__()
+
+    def receive_from_client(self, seg):
+        if seg.msg != '<CORRUPTED>' and seg.msg != 'NAK': 
+            if self.curAltBit == 0:
+                self.send_to_network(Segment('ACK0', 'sender', self.curAltBit))
+                self.send_to_app(seg.msg)
+                self.curAltBit = 1
+            else:
+                self.send_to_network(Segment('ACK1', 'sender', self.curAltBit))
+                self.send_to_app(seg.msg)
+                self.curAltBit = 0
+        else: 
+            self.send_to_network(Segment('NAK', 'sender', self.curAltBit))
+
 
 class GBNSender(BaseSender):
 	def __init__(self, app_interval):
